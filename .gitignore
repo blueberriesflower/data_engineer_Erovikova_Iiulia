@@ -1,0 +1,10 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.env
+postgres_data/
+*.csv
+.vscode/
+.idea/

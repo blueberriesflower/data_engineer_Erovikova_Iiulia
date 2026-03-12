@@ -1,0 +1,72 @@
+services:
+  db:
+    image: postgres:15
+    container_name: forum_logs_db
+    restart: always
+    env_file: .env
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASS}
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - common
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin_container
+    restart: always
+    env_file: .env
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PG_EMAIL}
+      - PGADMIN_DEFAULT_PASSWORD=${PG_PASS}
+      - PGADMIN_CONFIG_SERVER_MODE=False
+      - PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED=False
+    ports:
+      - "8080:80"
+    depends_on:
+      - db
+    networks:
+      - common
+    configs:
+      - source: pgadmin_servers
+        target: /pgadmin4/servers.json
+        mode: 0444
+      - source: pgadmin_pgpass
+        target: /pgadmin4/.pgpass
+        uid: "5050"
+        gid: "5050"
+        mode: 0600
+
+configs:
+  pgadmin_servers:
+    content: |
+      {
+        "Servers": {
+          "1": {
+            "Name": "Forum Logs DB",
+            "Group": "Servers",
+            "Host": "db",
+            "Port": 5432,
+            "MaintenanceDB": "${DB_NAME}",
+            "Username": "${DB_USER}",
+            "PassFile": "/pgadmin4/.pgpass",
+            "SSLMode": "prefer"
+          }
+        }
+      }
+  pgadmin_pgpass:
+    content: |
+      db:5432:*:${DB_USER}:${DB_PASS}
+
+networks:
+  common:
+    name: common
+    driver: bridge
+
+volumes:
+  postgres_data:
