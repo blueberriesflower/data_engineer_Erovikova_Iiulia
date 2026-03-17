@@ -60,7 +60,11 @@ def aggregate_data(start_input, end_input):
                 print("Данные за этот период отсутствуют.")
                 return
 
-            filename = f"report_{start_date}_{end_date}.csv"
+            folder_path = './reports'
+            os.makedirs(folder_path, exist_ok=True)
+            filename = os.path.join(folder_path, f'report_{start_date}_{end_date}.csv')
+            
+
             df.to_csv(filename, index=False)
             print(f"Отчет создан: {filename}")
             print(f"Превью отчета:")
