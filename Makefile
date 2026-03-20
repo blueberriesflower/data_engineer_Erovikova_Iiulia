@@ -20,6 +20,10 @@ install:
 generate:
 	$(PYTHON) generator.py
 
+reset:
+	docker compose down -v
+	$(MAKE) init
+
 aggregate:
 	# Пример: make aggregate START=2026-02-01 END=2026-03-01
 	$(PYTHON) aggregator.py $(START) $(END)
