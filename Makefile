@@ -8,6 +8,8 @@ PIP = $(DOCKER_RUN) $(VENV_BIN)/pip
 START ?= $(shell date +%Y-%m-01)
 END ?= $(shell date +%Y-%m-%d)
 
+env:
+	cp .env.example .env
 up:
 	docker compose up -d
 
@@ -31,7 +33,7 @@ aggregate:
 	# Пример: make aggregate START=2026-02-01 END=2026-03-01
 	$(PYTHON) aggregator.py $(START) $(END)
 
-init: up install
+init: env up install
 	@echo "Waiting for database to initialize..."
 	sleep 10
 	$(MAKE) generate

@@ -6,12 +6,11 @@
 > В данном проекте реализованы файлы docker-compose и Makefile, ниже приведены инструкции пользования
 ## Установка
 > [!IMPORTANT]
-> 1. Заменить файл .env.example на файл .env со своими данными
-> 2. В папке с проектом запустить:
+> В папке с проектом запустить:
 ```bash
 make init
 ```
-поднимется контейнер с python, там установятся нужные библиотеки, поднимутся контейнеры с БД и PGAdmin4 для наглядного просмотра, сгенерируется датасет, содержащий логи за месяц.
+используется контейнер с python, там установятся нужные библиотеки, поднимутся контейнеры с БД и PGAdmin4 для наглядного просмотра, сгенерируется датасет, содержащий логи за месяц.
 
 > [!NOTE]
 > PGAdmin4 откроется на локалхосте http://localhost:8080/
@@ -23,24 +22,55 @@ make init
 make reset
 ```
 
-> [!TIP]
-> Остановить все:
-```bash
-make down
-```
 ## Использование (пример)
 > После установки и поднятия контейнеров, в консоли будет предложен вариант ввода команды для аггрегации данных, будет приниматься любой валидируемый тип полной даты:)
 
 > [!NOTE]
 > make aggregate START="" END=""
-так же можно написать просто make aggregate чтобы получить аггрегацию за текущий месяц ,с 1 числа
+
+так же можно написать просто make aggregate чтобы получить аггрегацию за текущий месяц, с 1 числа
 
 
 # Дополнительная глава
+### 1. Аггрегация данных
 
-## Мой ход мысли
+1. Дневные метрики
 
-### 1. Схема БД
++ **Новые аккаунты**\
+  $`\text{new\_accounts}_d= \sum_{\text{logs on day } d} [\text{action} = \text{'registration'} \land \text{status} = \text{'success'}]`$
+
++ **Всего сообщений**\
+  $`\text{total\_messages}_d = \sum_{\text{logs on day } d} [\text{action} = \text{'write\_message'}]`$
+
++ **Анонимные сообщения**\
+  $`
+  \text{anon\_messages}_d = \sum_{\text{logs on day } d} [\text{action} = \text{'write\_message'} \land \text{user\_id IS NULL}]
+  `$
+
+2. Вычисляемые метрики
+
++ **Процент анонимных сообщений**\
+  $`
+  \text{anon\_messages\_percent}_d = \frac{\text{anon\_messages}_d}{\text{total\_messages}_d} \times 100
+  `$
+
++ **Количество тем на конец дня**\
+  $`
+  \text{total\_topics\_at\_end\_of\_day}_d = \sum_{i = \text{min}}^{d} \left( \text{topics\_created\_today}_i - \text{topics\_deleted\_today}_i \right)
+  `$
+
++ **Процент прироста тем**\
+  $`
+  \text{topic\_growth\_percent}_d = \frac{\text{topics\_created\_today}_d}{\text{total\_topics\_at\_end\_of\_day}_{d-1}} \times 100
+  `$
+
+  
+  Если знаменатель равен 0, результат = $`\text{NULL}`$.
+
+  
+  Для корректного расчёта $`\text{topic\_growth\_percent}_d`$ в первый день выбранного диапазона необходимо, чтобы $`\text{total\_topics\_at\_end\_of\_day}_{d-1}`$ было известно. Это достигается предварительным расчётом кумулятивной суммы для всех дней до начала диапазона.
+
+### 2. Схема БД
 
 Я начала с мыслей как бы выглядела возможная полная бд всего форума, но с минимальной нагруженностью(так как тз не целый сервис писать) это меня привело к варианту на картинке ниже
 [![qNNITSj.md.png](https://iili.io/qNNITSj.md.png)](https://freeimage.host/i/qNNITSj)
@@ -48,9 +78,10 @@ make down
 но т.к. в задании не сказано что мы храним какие либо информации об аккаунтах, конечным вариантом стало 2 таблицы:
 [![qNN1g5P.md.png](https://iili.io/qNN1g5P.md.png)](https://freeimage.host/i/qNN1g5P)
 
-Почему не одна таблица? Я решила,  что этот момент нужно нормализовать, сделать словарь со значениями действий, чтобы избежать множественных повторений одного и того же в основной таблице
+Почему не одна таблица? Я решила, что этот момент нужно нормализовать, сделать словарь со значениями действий, чтобы избежать множественных повторений данных в основной таблице
 
-### 2.  Исследование активности пользователей (на основе данных VL.ru)
+
+### 3.  Исследование активности пользователей (на основе данных VL.ru)
 
 Для реализации реалистичного генератора логов было проведено мини-исследование активности жителей Владивостока на городском портале VL.ru (раздел "Опросы").
 
@@ -72,42 +103,3 @@ make down
 
 [![qN6XBHB.md.png](https://iili.io/qN6XBHB.md.png)](https://freeimage.host/i/qN6XBHB)
 
-### 3. Аггрегация данных
-
-1. Дневные метрики
-
-+ **Новые аккаунты**  
-  \[
-  \text{new\_accounts}= \sum_{\text{logs on day }} [\text{action} = \text{'registration'} \land \text{status} = \text{'success'}]
-  \]
-
-+ **Всего сообщений**  
-  \[
-  \text{total\_messages}_d = \sum_{\text{logs on day } d} [\text{action} = \text{'write\_message'}]
-  \]
-
-+ **Анонимные сообщения**  
-  \[
-  \text{anon\_messages}_d = \sum_{\text{logs on day } d} [\text{action} = \text{'write\_message'} \land \text{user\_id IS NULL}]
-  \]
-
-2. Вычисляемые метрики
-
-+ **Процент анонимных сообщений**  
-  \[
-  \text{anon\_messages\_percent}_d = \frac{\text{anon\_messages}_d}{\text{total\_messages}_d} \times 100
-  \]
-
-+ **Количество тем на конец дня**
-  \[
-  \text{total\_topics\_at\_end\_of\_day}_d = \sum_{i = \text{min}}^{d} \left( \text{topics\_created\_today}_i - \text{topics\_deleted\_today}_i \right)
-  \]
-
-+ **Процент прироста тем**  
-  \[
-  \text{topic\_growth\_percent}_d = \frac{\text{topics\_created\_today}_d}{\text{total\_topics\_at\_end\_of\_day}_{d-1}} \times 100
-  \]
-  Если знаменатель равен 0, результат = \(\text{NULL}\).
-  Для корректного расчёта \(\text{topic\_growth\_percent}_d\) в первый день выбранного диапазона необходимо, чтобы \(\text{total\_topics\_at\_end\_of\_day}_{d-1}\) было известно. Это достигается предварительным расчётом кумулятивной суммы для всех дней до начала диапазона.
-
-    
