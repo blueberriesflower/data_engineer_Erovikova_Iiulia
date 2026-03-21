@@ -20,6 +20,9 @@ install:
 generate:
 	$(PYTHON) generator.py
 
+clean:
+	docker compose down -v
+
 reset:
 	docker compose down -v
 	$(MAKE) init

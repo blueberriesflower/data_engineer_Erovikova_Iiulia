@@ -11,7 +11,7 @@
 ```bash
 make init
 ```
-поднимется контейнер с python, там установятся нужные библиотеки, поднимутся контейнеры с БД и PGAdmin4 для наглядного просмотра, сгенерируется датасет, содержащий логи за 30 дней.
+поднимется контейнер с python, там установятся нужные библиотеки, поднимутся контейнеры с БД и PGAdmin4 для наглядного просмотра, сгенерируется датасет, содержащий логи за месяц.
 
 > [!NOTE]
 > PGAdmin4 откроется на локалхосте http://localhost:8080/
@@ -29,7 +29,7 @@ make reset
 make down
 ```
 ## Использование (пример)
-> После установки и поднятия контейнеров, в консоли будет предложен вариант ввода команды для аггрегации данных, будет приниматься любой валидируемый тип даты, даже 13march2026 главное писать без пробелов:)
+> После установки и поднятия контейнеров, в консоли будет предложен вариант ввода команды для аггрегации данных, будет приниматься любой валидируемый тип полной даты:)
 
 > [!NOTE]
 > make aggregate START="" END=""
@@ -72,4 +72,42 @@ make down
 
 [![qN6XBHB.md.png](https://iili.io/qN6XBHB.md.png)](https://freeimage.host/i/qN6XBHB)
 
+### 3. Аггрегация данных
 
+1. Дневные метрики
+
++ **Новые аккаунты**  
+  \[
+  \text{new\_accounts}= \sum_{\text{logs on day }} [\text{action} = \text{'registration'} \land \text{status} = \text{'success'}]
+  \]
+
++ **Всего сообщений**  
+  \[
+  \text{total\_messages}_d = \sum_{\text{logs on day } d} [\text{action} = \text{'write\_message'}]
+  \]
+
++ **Анонимные сообщения**  
+  \[
+  \text{anon\_messages}_d = \sum_{\text{logs on day } d} [\text{action} = \text{'write\_message'} \land \text{user\_id IS NULL}]
+  \]
+
+2. Вычисляемые метрики
+
++ **Процент анонимных сообщений**  
+  \[
+  \text{anon\_messages\_percent}_d = \frac{\text{anon\_messages}_d}{\text{total\_messages}_d} \times 100
+  \]
+
++ **Количество тем на конец дня**
+  \[
+  \text{total\_topics\_at\_end\_of\_day}_d = \sum_{i = \text{min}}^{d} \left( \text{topics\_created\_today}_i - \text{topics\_deleted\_today}_i \right)
+  \]
+
++ **Процент прироста тем**  
+  \[
+  \text{topic\_growth\_percent}_d = \frac{\text{topics\_created\_today}_d}{\text{total\_topics\_at\_end\_of\_day}_{d-1}} \times 100
+  \]
+  Если знаменатель равен 0, результат = \(\text{NULL}\).
+  Для корректного расчёта \(\text{topic\_growth\_percent}_d\) в первый день выбранного диапазона необходимо, чтобы \(\text{total\_topics\_at\_end\_of\_day}_{d-1}\) было известно. Это достигается предварительным расчётом кумулятивной суммы для всех дней до начала диапазона.
+
+    

@@ -34,7 +34,12 @@ def generate_data():
     cur.execute("SELECT name, id FROM action_types")
     actions = dict(cur.fetchall())
 
-    end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    create_id = actions.get('create_topic')
+    delete_id = actions.get('delete_topic')
+
+    total_topics = 0
+
+    end_date = datetime.now().replace(hour=0, minute=0, second=0)
     current_day = end_date - timedelta(days=30)
 
     while current_day <= end_date:
@@ -42,26 +47,55 @@ def generate_data():
         coeff = WEEKDAY_COEFFICIENTS[weekday]
         day_batch = []
 
+        create_count = int((random.randint(20, 40)) * coeff)
+        successful_creates_today = 0
+
+        for i in range(create_count):
+            timestamp = current_day + timedelta(hours=random.randint(0, 23), minutes=random.randint(0, 59))
+            user_id = random.randint(1, 1000)
+            status = 'success'
+            
+            if i < REQUIRED_CREATE_TOPIC_ERRORS_PER_DAY:
+                status = 'error'
+                user_id = None
+            else:
+                successful_creates_today += 1
+                
+            day_batch.append((user_id, create_id, random.randint(100, 9999), status, timestamp))
+
+        max_deletions = total_topics + successful_creates_today
+        deletions_count = 0    
+
         for action_name, action_id in actions.items():
             count = int(max(MIN_ACTIONS_PER_TYPE, random.randint(5, 15)) * coeff)
+
+            if action_name == 'create_topic':
+                continue
+
+            if action_name == 'delete_topic':
+                if max_deletions >= 5:
+                    count = random.randint(5, max_deletions)
+                else:
+                    count = max_deletions
+                deletions_count = count
+            else:
+                count = int(max(MIN_ACTIONS_PER_TYPE, random.randint(5, 15)) * coeff)
+
+                if action_name == 'write_message' and random.random() < ANON_PROBABILITY:
+                    pass
 
             for i in range(count):
                 timestamp = current_day + timedelta(
                     hours=random.randint(0, 23),
                     minutes=random.randint(0, 59)
                 )
-                
 
                 user_id = random.randint(1, 1000)
                 object_id = random.randint(100, 9999)
                 status = 'success'
 
 
-                if action_name == 'create_topic' and i < REQUIRED_CREATE_TOPIC_ERRORS_PER_DAY:
-                    status = 'error'
-                    user_id = None
-
-                elif action_name == 'write_message':
+                if action_name == 'write_message':
                     if random.random() < ANON_PROBABILITY:
                         user_id = None
 
@@ -77,6 +111,8 @@ def generate_data():
             INSERT INTO user_logs (user_id, action_id, object_id, status, created_at)
             VALUES %s
         """, day_batch)
+
+        total_topics = total_topics + successful_creates_today - deletions_count
         
         print(f"Заполнен день: {current_day.date()}")
         current_day += timedelta(days=1)

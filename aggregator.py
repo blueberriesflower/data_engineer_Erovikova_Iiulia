@@ -1,9 +1,9 @@
 import os
-import sys
 import pandas as pd
-from sqlalchemy import create_engine, text
+import sys
 from dateutil import parser
 from dotenv import load_dotenv
+from sqlalchemy import create_engine, text
 
 load_dotenv()
 
@@ -66,10 +66,15 @@ def aggregate_data(start_input, end_input):
                 JOIN action_types t ON l.action_id = t.id
                 GROUP BY 1
                 ),
+                cumulative AS (
+                    SELECT *,
+                        SUM(topics_created_today - topics_deleted_today) OVER (ORDER BY day) AS total_topics_at_end_of_day
+                    FROM daily_metrics
+                ),
                 inventory AS (
                     SELECT *,
-                    SUM (topics_created_today - topics_deleted_today) OVER (ORDER BY day) as total_topics_at_end_of_day
-                    FROM daily_metrics
+                        ROUND((topics_created_today::float / NULLIF(LAG(total_topics_at_end_of_day) OVER (ORDER BY day), 0) * 100)::numeric, 2) AS topic_growth_percent
+                    FROM cumulative
                 )
                 
                 SELECT 
@@ -78,9 +83,7 @@ def aggregate_data(start_input, end_input):
                     ROUND(
                         (anon_messages::float / NULLIF(total_messages, 0) * 100)::numeric, 2) as "anon_messages_percent",
                     total_messages as "total_messages",
-                    ROUND(
-                        (topics_created_today::float / NULLIF(LAG(total_topics_at_end_of_day) 
-                        OVER (ORDER BY day), 0) * 100)::numeric, 2) as "topic_growth_percent"
+                    topic_growth_percent as "topic_growth_percent"
                 FROM inventory
                 WHERE day BETWEEN :start_date AND :end_date
                 ORDER BY day;
