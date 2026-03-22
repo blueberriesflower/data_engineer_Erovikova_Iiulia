@@ -87,9 +87,6 @@ def generate_data():
                 count = int(max(MIN_ACTIONS_PER_TYPE,
                             random.randint(5, 15)) * coeff)
 
-                if action_name == 'write_message' and random.random() < ANON_PROBABILITY:
-                    pass
-
             for i in range(count):
                 timestamp = current_day + timedelta(
                     hours=random.randint(0, 23),
@@ -113,11 +110,11 @@ def generate_data():
                 day_batch.append(
                     (user_id, action_id, object_id, status, timestamp))
 
-        query_insert = """
+        execute_values(cur, """
             INSERT INTO user_logs (user_id, action_id, object_id, status, created_at)
             VALUES %s
-        """
-        execute_values(cur, query_insert, day_batch)
+        """, day_batch)
+
         total_topics = total_topics + successful_creates_today - deletions_count
 
         print(f"Заполнен день: {current_day.date()}")
