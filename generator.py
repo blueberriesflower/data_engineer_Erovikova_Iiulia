@@ -7,6 +7,7 @@ from psycopg2.extras import execute_values
 
 load_dotenv()
 
+
 def get_db_connection():
     return psycopg2.connect(
         host=os.getenv("DB_HOST"),
@@ -15,6 +16,7 @@ def get_db_connection():
         user=os.getenv("DB_USER"),
         password=os.getenv("DB_PASS")
     )
+
 
 MIN_ACTIONS_PER_TYPE = 5
 ERROR_PROBABILITY = 0.10
@@ -30,12 +32,11 @@ WEEKDAY_COEFFICIENTS = [1.7, 2.2, 1.0, 4.8, 3.7, 2.2, 2.6]
 def generate_data():
     conn = get_db_connection()
     cur = conn.cursor()
-    
+
     cur.execute("SELECT name, id FROM action_types")
     actions = dict(cur.fetchall())
 
     create_id = actions.get('create_topic')
-    delete_id = actions.get('delete_topic')
 
     total_topics = 0
 
@@ -51,23 +52,27 @@ def generate_data():
         successful_creates_today = 0
 
         for i in range(create_count):
-            timestamp = current_day + timedelta(hours=random.randint(0, 23), minutes=random.randint(0, 59))
+            timestamp = current_day + \
+                timedelta(hours=random.randint(0, 23),
+                          minutes=random.randint(0, 59))
             user_id = random.randint(1, 1000)
             status = 'success'
-            
+
             if i < REQUIRED_CREATE_TOPIC_ERRORS_PER_DAY:
                 status = 'error'
                 user_id = None
             else:
                 successful_creates_today += 1
-                
-            day_batch.append((user_id, create_id, random.randint(100, 9999), status, timestamp))
+
+            day_batch.append(
+                (user_id, create_id, random.randint(100, 9999), status, timestamp))
 
         max_deletions = total_topics + successful_creates_today
-        deletions_count = 0    
+        deletions_count = 0
 
         for action_name, action_id in actions.items():
-            count = int(max(MIN_ACTIONS_PER_TYPE, random.randint(5, 15)) * coeff)
+            count = int(max(MIN_ACTIONS_PER_TYPE,
+                        random.randint(5, 15)) * coeff)
 
             if action_name == 'create_topic':
                 continue
@@ -79,7 +84,8 @@ def generate_data():
                     count = max_deletions
                 deletions_count = count
             else:
-                count = int(max(MIN_ACTIONS_PER_TYPE, random.randint(5, 15)) * coeff)
+                count = int(max(MIN_ACTIONS_PER_TYPE,
+                            random.randint(5, 15)) * coeff)
 
                 if action_name == 'write_message' and random.random() < ANON_PROBABILITY:
                     pass
@@ -94,32 +100,33 @@ def generate_data():
                 object_id = random.randint(100, 9999)
                 status = 'success'
 
-
                 if action_name == 'write_message':
                     if random.random() < ANON_PROBABILITY:
                         user_id = None
 
                 elif action_name == 'first_visit':
                     user_id = None
-                
+
                 elif random.random() < 0.05:
                     status = 'error'
 
-                day_batch.append((user_id, action_id, object_id, status, timestamp))
+                day_batch.append(
+                    (user_id, action_id, object_id, status, timestamp))
 
-        execute_values(cur, """
+        query_insert = """
             INSERT INTO user_logs (user_id, action_id, object_id, status, created_at)
             VALUES %s
-        """, day_batch)
-
+        """
+        execute_values(cur, query_insert, day_batch)
         total_topics = total_topics + successful_creates_today - deletions_count
-        
+
         print(f"Заполнен день: {current_day.date()}")
         current_day += timedelta(days=1)
 
     conn.commit()
     cur.close()
     conn.close()
+
 
 if __name__ == "__main__":
     generate_data()
